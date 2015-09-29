@@ -10,6 +10,8 @@ var http = require('http');
 var path = require('path');
 
 var app = express();
+var mongo = require('mongodb').MongoClient;
+
 
 // all environments
 app.set('port', process.env.PORT || 3000);
@@ -38,13 +40,33 @@ server.listen(app.get('port'), function () {
     console.log('Express server listening on port ' + app.get('port'));
 });
 
+
+
 io.on('connection', function(socket) {
     console.log('A user connected');
+
+    mongo.connect('localhost:27017/chatTutorial', function(err, db) {
+        var collection = db.collection('chat messages');
+        var stream = collection.find().sort({ _id: -1 }).limit(10).stream();
+        stream.on('data', function(chat) {
+            socket.emit('chat', chat);
+        });
+    });
     socket.on('disconnect', function() {
         console.log('A user Disconnected');
     });
 
     socket.on('chat', function(msg) {
         socket.broadcast.emit('chat', msg);
+        mongo.connect('localhost:27017/chatTutorial', function (err, db) {
+            var collection = db.collection('chat messages');
+            collection.insert({ content: msg }, function (err, o) {
+                if (err) {
+                    console.warn(err.message);
+                } else {
+                    console.log('Chat messaged inserted into db: ' + msg);
+                }
+            });
+        });
     });
 });
